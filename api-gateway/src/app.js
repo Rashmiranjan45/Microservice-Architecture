@@ -1,0 +1,96 @@
+import express from "express";
+import cors from "cors";
+import Redis from "ioredis";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
+import { RedisStore } from "rate-limit-redis";
+import logger from "./utils/logger.js";
+import proxy from "express-http-proxy";
+import { errorHandler } from "./middleware/errorHandler.js";
+import { verifyToken } from "./middleware/auth.middleware.js";
+
+const app = express();
+const redisClient = new Redis(process.env.REDIS_URL);
+
+app.use(helmet());
+app.use(cors());
+app.use(express.json());
+
+const rateLimitOptions = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    logger.warn(`Global rate limit exceeded for IP ${req.ip}`);
+    res.status(429).json({
+      success: false,
+      message: "Too many requests",
+    });
+  },
+  store: new RedisStore({
+    sendCommand: (...args) => redisClient.call(...args),
+  }),
+});
+
+app.use(rateLimitOptions);
+
+app.use((req, res, next) => {
+  logger.info(`Recived ${req.method} request to ${req.url}`);
+  logger.info(`Request body, ${req.body}`);
+  next();
+});
+
+const proxyOptions = {
+  proxyReqPathResolver: (req) => {
+    return req.originalUrl.replace(/^\/v1/, "/api");
+  },
+  proxyErrorHandler: (err, res, next) => {
+    logger.error(`Proxy error: ${err.message}`);
+    res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
+    });
+  },
+};
+
+//setting up proxy for our auth service-
+
+app.use(
+  "/v1/auth",
+  proxy(process.env.AUTH_SERVICE_URL, {
+    ...proxyOptions,
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+      proxyReqOpts.headers["Content-Type"] = "application/json";
+      return proxyReqOpts;
+    },
+    userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
+      logger.info(
+        `Response received from Auth service : ${proxyRes.statusCode}`,
+      );
+      return proxyResData;
+    },
+  }),
+);
+
+app.use(
+  "/v1/posts",verifyToken,
+  proxy(process.env.POST_SERVICE_URL, {
+    ...proxyOptions,
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+      proxyReqOpts.headers["Content-Type"] = "application/json";
+      proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
+      return proxyReqOpts;
+    },
+    userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
+      logger.info(
+        `Response received from Auth service : ${proxyRes.statusCode}`,
+      );
+      return proxyResData;
+    },
+  }),
+);
+
+app.use(errorHandler);
+
+export { app };
