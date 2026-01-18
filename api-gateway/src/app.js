@@ -73,8 +73,11 @@ app.use(
   }),
 );
 
+//setting proxy for post-service
+
 app.use(
-  "/v1/posts",verifyToken,
+  "/v1/posts",
+  verifyToken,
   proxy(process.env.POST_SERVICE_URL, {
     ...proxyOptions,
     proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
@@ -84,10 +87,34 @@ app.use(
     },
     userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
       logger.info(
-        `Response received from Auth service : ${proxyRes.statusCode}`,
+        `Response received from Post service : ${proxyRes.statusCode}`,
       );
       return proxyResData;
     },
+  }),
+);
+
+//setting proxy for media-service
+
+app.use(
+  "/v1/medias",
+  verifyToken,
+  proxy(process.env.MEDIA_SERVICE_URL, {
+    ...proxyOptions,
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+      proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
+      if (!srcReq.headers["content-type"].startsWith("multipart/form-data")) {
+        proxyReqOpts.headers["Content-Type"] = "application/json";
+      }
+      return proxyReqOpts;
+    },
+    userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
+      logger.info(
+        `Response received from Media service : ${proxyRes.statusCode}`,
+      );
+      return proxyResData;
+    },
+    parseReqBody: false,
   }),
 );
 
