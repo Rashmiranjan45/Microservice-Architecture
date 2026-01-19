@@ -10,7 +10,7 @@ export const handlePostDeleted = async (event) => {
       await deleteMediaFromCloudinary(media.publicId);
       await Media.findByIdAndDelete(media._id);
       logger.infor(
-        `Deleted media ${media_id} associated with this deleted post ${postId}`,
+        `Deleted media ${media._id} associated with this deleted post ${postId}`,
       );
     }
     logger.info(`Processed deletion of media for post id ${postId}`);
