@@ -32,8 +32,6 @@ const registerUser = async (req, res) => {
 
     const { accessToken, refreshToken } = await generateToken(user);
 
-    console.log(accessToken, refreshToken);
-
     res.status(201).json({
       success: true,
       message: "User registered successfully",
@@ -135,7 +133,7 @@ const createRefreshToken = async (req, res) => {
 
     res.json({
       accessToken: newAccessToken,
-      refreshToken: new RefreshToken(),
+      refreshToken: newRefreshToken,
     });
   } catch (error) {
     logger.error("Refresh Token error occured", error);
@@ -149,22 +147,22 @@ const createRefreshToken = async (req, res) => {
 //logoutUser
 
 const loggedoutUser = async (req, res) => {
-  logger.info("Logout endpoint hit...")
+  logger.info("Logout endpoint hit...");
   try {
-    const {refreshToken} = req.body
-    if(!refreshToken){
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
       logger.warn("Refresh token missing.");
       return res.status(400).json({
         success: false,
         message: "Refresh token missing.",
       });
     }
-    await RefreshToken.deleteOne({token:refreshToken})
-    logger.info("Refresh token deleted for logout")
+    await RefreshToken.deleteOne({ token: refreshToken });
+    logger.info("Refresh token deleted for logout");
     res.json({
-      success:true,
-      message:"logged out successfully."
-    })
+      success: true,
+      message: "logged out successfully.",
+    });
   } catch (error) {
     logger.error("Error while logging out user.", error);
     res.status(500).json({

@@ -118,6 +118,27 @@ app.use(
   }),
 );
 
+//setting proxy for search-service
+
+app.use(
+  "/v1/search",
+  verifyToken,
+  proxy(process.env.SEARCH_SERVICE_URL, {
+    ...proxyOptions,
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+      proxyReqOpts.headers["Content-Type"] = "application/json";
+      proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
+      return proxyReqOpts;
+    },
+    userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
+      logger.info(
+        `Response received from Search service : ${proxyRes.statusCode}`,
+      );
+      return proxyResData;
+    },
+  }),
+);
+
 app.use(errorHandler);
 
 export { app };
